@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- CSS only -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@forevolve/bootstrap-dark@1.0.0/dist/css/bootstrap-dark.min.css" />
+    <title>Document</title>
+</head>
+<body>
+    <div id="container">
+
+    <div class="h-100 p-5 text-bg-dark rounded-3" style="margin-bottom: 30px;">
+        <h2>Agendar mensagens no Discord</h2>
+        <p>App para agendar mensagens no discord</p>
+        <button class="btn btn-outline-light" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal">Agendar Mensagem</button>
+    </div>
+
+    <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h1 class="modal-title fs-5" id="exampleModalLabel">Criar Mensagem</h1>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label for="basic-url" class="form-label">Titulo</label>
+        <div class="input-group mb-3">
+            <input class="form-control" id="formName" id="name" >
+        </div>
+        <label for="basic-url" class="form-label">Mensagem</label>
+        <div class="input-group mb-3">
+        <textarea class="form-control" id="formText" style="height: 200px;"id="text"></textarea>
+        </div>
+        <label for="basic-url" class="form-label">Data e Hora</label>
+        <div class="input-group mb-3">
+            <input class="form-control" id="formData" type="date">
+            <input class="form-control" id="formHora" type="time">
+        </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-primary" onClick=msgAgendar()>Criar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    <div id="agendarArea">
+
+    </div>
+    <div class="list-group w-auto" id="myList">
+    </div>
+    <!-- JavaScript Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-OERcA2EqjJCMA+/3y+gxIOqMEjwtxJY7qPCqsdltbNJuaOe923+mo//f6V8Qbsw3" crossorigin="anonymous"></script>
+    <script>
+
+        let displayList = [];
+
+        async function delMsg(id){
+            const rawResponse = await fetch(`/messages/del`, {
+                method: 'POST',
+                headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({name:id})
+            });
+            const content = await rawResponse//.json();
+
+            console.log(content);
+
+            window.location.reload()
+        }
+
+        async function msgAgendar(){
+            const title=document.getElementById("formName").value
+            const text=document.getElementById("formText").value
+            var date=document.getElementById("formData").value
+            date=date.split('-')
+            date=date[2]+'/'+date[1]
+            const time=document.getElementById("formHora").value
+            console.log({title,text,date,time})
+            addMsg(title,text,date,time)
+        }
+
+        async function addMsg(title,text,date,time){
+            const rawResponse = await fetch(`/messages/add`, {
+                method: 'POST',
+                headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({title,text,date,time})
+            });
+            const content = await rawResponse//.json();
+
+            console.log(content);
+            window.location.reload()
+        }
+
+        function loadMessages(){
+            fetch(`/messages`)
+            .then((response) => response.json())
+            .then((data) => {
+                console.log(data)
+                var list = document.getElementById("myList");
+                list.innerHTML=""
+                data.forEach((item) => {
+                    displayList=[]
+                    displayList.push(item.name);
+                    let li = document.createElement("li");
+                    li.innerText = item.name;
+                    let id=item.name.replace(" ","-")
+                    let date=new Date(item.date)
+                    let img="https://yt3.ggpht.com/ytc/AMLnZu_ZJOSKicjQFnKxARpHEgBDv1-VEXLTw5KmSFso=s176-c-k-c0x00ffffff-no-rj"
+                    list.insertAdjacentHTML( 'beforeend', 
+                    `            
+                    <a href="#" class="list-group-item list-group-item-action d-flex gap-3 py-3" aria-current="true">
+                        <img src="${img}" alt="twbs" width="32" height="32" class="rounded-circle flex-shrink-0" style="margin-right:15px">
+                        <div class="d-flex gap-2 w-100 justify-content-between">
+                        <div>
+                            <h6 class="mb-0">${item.name}</h6>
+                            <p class="mb-0 opacity-75">${item.text}</p>
+                            <button class="btn btn-primary" onClick="delMsg('${item.name}')">excluir</button>
+                        </div>
+                        <small class="opacity-50 text-nowrap">${date.toDateString()+' - '+date.getHours()+':'+date.getMinutes()}</small>
+                        </div>
+                    </a>
+                    `
+                    );
+                })
+                console.log(displayList)
+            })
+            .catch((err) => {
+                console.log(`Error fetching: ${err}`)
+            });
+        }
+        loadMessages()
+         
+
+    </script>
+    <style>
+        #agendarArea{
+            width: 100%;
+            height: auto;
+            background-color: red;
+            display: block;
+        }#container{
+            width: 60%;
+            margin: auto;
+        }body{
+            padding: 30px;
+        }
+    </style>
+    
+</body>
+</html>
