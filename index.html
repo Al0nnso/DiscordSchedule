@@ -10,7 +10,6 @@
 </head>
 <body>
     <div id="container">
-
     <div class="h-100 p-5 text-bg-dark rounded-3" style="margin-bottom: 30px;">
         <h2>Agendar mensagens no Discord</h2>
         <p>App para agendar mensagens no discord</p>
@@ -38,6 +37,13 @@
             <input class="form-control" id="formData" type="date">
             <input class="form-control" id="formHora" type="time">
         </div>
+        <label for="basic-url" class="form-label">Webhook</label>
+        <div class="input-group mb-3">
+            <input class="form-control" id="formWebhook" id="webhook" >
+        </div>
+            </div>
+            <div class="alert alert-danger hidden" role="alert" id="erroBox">
+                Erro, tente novamente mais tarde
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -75,27 +81,35 @@
 
         async function msgAgendar(){
             const title=document.getElementById("formName").value
+            const webhook=document.getElementById("formWebhook").value
             const text=document.getElementById("formText").value
             var date=document.getElementById("formData").value
             date=date.split('-')
             date=date[2]+'/'+date[1]
             const time=document.getElementById("formHora").value
-            console.log({title,text,date,time})
-            addMsg(title,text,date,time)
+            console.log({title,text,date,time,webhook})
+            addMsg(title,text,date,time,webhook)
         }
 
-        async function addMsg(title,text,date,time){
+        async function addMsg(title,text,date,time,webhook){
             const rawResponse = await fetch(`/messages/add`, {
                 method: 'POST',
                 headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({title,text,date,time})
+                body: JSON.stringify({title,text,date,time,webhook})
             });
-            const content = await rawResponse//.json();
-
+            const content = await rawResponse.json();
             console.log(content);
+
+            if(content.error){
+                const erroBox = document.getElementById('erroBox')
+                erroBox.innerText=content.message
+                erroBox.classList.remove('hidden')
+                return;
+            }
+
             window.location.reload()
         }
 
@@ -151,6 +165,8 @@
             margin: auto;
         }body{
             padding: 30px;
+        }.hidden{
+            display: none;
         }
     </style>
     

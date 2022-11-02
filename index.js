@@ -1,6 +1,8 @@
 const express = require('express');
 const nodeSchedule = require('node-schedule');
 
+const database = require('./database')
+
 const app = express();
 const path = require('path');
 
@@ -8,10 +10,12 @@ const axios = require('axios')
 
 app.use(express.json());
 
-const URL='https://discord.com/api/webhooks/1036497521305997404/1ptSY42aDD5JPuP3QgWyGLetZ2ul5jcBYa6m4WcpnWBeHZVVQ0lVcPsd4n3Ne3P0dl7p'
+const getError=(text)=>{
+    return {error:true,message:text}
+}
 
-const sendDiscordMsg=async (text)=>{
-    await axios.post(URL, JSON.stringify({
+const sendDiscordMsg=async (text,webhook)=>{
+    await axios.post(webhook, JSON.stringify({
         "content":text
     }), {
     headers: {
@@ -44,39 +48,59 @@ const generateDate=(date,time)=>{
     }
 }
 
-const agendarMsg = (dateTime,text,title)=>{
+const agendarMsg = async(dateTime,text,title,webhook)=>{
+
+    let rule = new nodeSchedule.RecurrenceRule();
+    rule.tz = 'America/Sao_Paulo';
+
     const job = nodeSchedule.scheduleJob(title,dateTime, () => {
-        sendDiscordMsg(text)
+        sendDiscordMsg(text,webhook)
         console.log('message : '+text)
     });
 
     nodeSchedule.scheduledJobs[title].text=text
+    nodeSchedule.scheduledJobs[title].webhook=webhook
 
     return('mensagem agendada! - '+job.nextInvocation())
 }
 
-app.post('/messages/add', (req, res) => {
+app.post('/messages/add', async(req, res) => {
 
     console.log(req.body)
 
-    if(!req.body || !req.body.title || !req.body.text || !req.body.date || !req.body.time ){
-        return res.send('Erro, envie (title,text,date,time) para agendar a mensagem')
+    if(!req.body || !req.body.title || !req.body.text || !req.body.date || !req.body.time || !req.body.webhook ){
+        return res.send(getError('Erro, envie (title,text,date,time,webhook) para agendar a mensagem'))
     }
 
     try{
         const dateTime=generateDate(req.body.date,req.body.time)
         console.log(dateTime)
-        return res.send(agendarMsg(dateTime,req.body.text,req.body.title))
+
+        const msgAgendada = agendarMsg(dateTime,req.body.text,req.body.title,req.body.webhook)
+
+        await database.discord.add({
+            title:req.body.title,
+            text:req.body.text,
+            dateTime,
+            webhook:req.body.webhook,
+        })
+
+        return res.send(msgAgendada)
     }catch(err){
-        res.statusCode = 400;
-        return res.send(err.message)
+        return res.send(getError(err.message))
     }
+})
+
+app.get('/messages/teste', async(req, res) => {
+    const messages = await database.discord.get()
+
+    res.send(messages);
 })
 
 app.get('/messages', (req, res) => {
     let jobs = nodeSchedule.scheduledJobs
 
-    console.log(jobs)
+    //console.log(jobs)
 
     var messages = []
     
@@ -85,30 +109,34 @@ app.get('/messages', (req, res) => {
             name:job.name,
             date:job.nextInvocation(),
             text:job.text,
+            webhook:job.webhook
         })
     });
 
     res.send(messages);
 });
 
-app.post('/messages/del', (req, res) => {
+app.post('/messages/del', async(req, res) => {
 
     if(req.body.name){
-
         try{
             var job = nodeSchedule.scheduledJobs[req.body.name];
             job.cancel();
 
+            const messages = await database.discord.get()
+            const key = Object.keys(messages).find(msg => messages[msg].title === req.body.name)
+
+            await database.discord.remove(messages[key].id)
+
             res.send('Mensagem ( '+req.body.name+' ) cancelada');
         }catch(e){
-            res.statusCode = 400;
             console.log(e.message)
-            res.send('O nome da mensagem é invalido!');           
+            res.send(getError('O nome da mensagem é invalido!'));           
         }
 
     }else{
-        res.statusCode = 400;
-        res.send('Por favor, informe o nome da mensagem ( name = "NomeDaMensagem" )');
+        //res.statusCode = 400;
+        res.send(getError('Por favor, informe o nome da mensagem ( name = "NomeDaMensagem" )'));
     }
 });
 
@@ -116,5 +144,17 @@ app.get('/',function(req,res) {
     res.sendFile(path.join(__dirname+'/index.html'));
 });
 
+async function setup(){
 
-app.listen(3000, () => console.log('Example app is listening on port 3000.'));
+    console.log('Example app is listening on port 3000.')
+
+    const messages = await database.discord.get()
+    messages.forEach((msg)=>{
+        if(msg.title && msg.text && msg.dateTime && msg.webhook){
+            agendarMsg(msg.dateTime,msg.text,msg.title,msg.webhook)
+            console.log('msg agendada: '+msg.title)
+        }
+    })
+}
+
+app.listen(3000, () => setup());
